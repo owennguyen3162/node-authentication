@@ -27,12 +27,13 @@ exports.register = async (req, res) => {
   //     });
   //   }
   const body = await req.body;
+  console.log(body);
   const User = new userModel(body);
   try {
     await User.save();
-    res.status(201).json("Done");
+    res.status(201).json({ msg: "Done" });
   } catch (error) {
-    console.log("create error");
+    res.status(500).json({ msg: "Error" });
   }
 };
 
@@ -50,49 +51,53 @@ exports.login = async (req, res) => {
   userModel
     .findOne({ username: body.username })
     .then(async (element) => {
-      const data = element.toObject();
-      //   const isPasswordValid = bcrypt.compareSync(data.password, body.password);
-      //   if (!isPasswordValid) {
-      //     return res.status(401).send("Mật khẩu không chính xác.");
-      //   }
-      const accessTokenLife = "10m";
-      const accessTokenSecret =
-        "Access_Token_Secret_#$%_ExpressJS_Authentication";
+      if (element) {
+        const data = element.toObject();
+        console.log(data);
+        const accessTokenLife = "2m";
+        const accessTokenSecret =
+          "Access_Token_Secret_#$%_ExpressJS_Authentication";
 
-      const dataForAccessToken = {
-        username: data.username,
-      };
-      const accessToken = await authMethod.generateToken(
-        dataForAccessToken,
-        accessTokenSecret,
-        accessTokenLife
-      );
-      if (!accessToken) {
-        return res
-          .status(401)
-          .send("Đăng nhập không thành công, vui lòng thử lại.");
-      }
+        const dataForAccessToken = {
+          username: data.username,
+        };
+        const accessToken = await authMethod.generateToken(
+          dataForAccessToken,
+          accessTokenSecret,
+          accessTokenLife
+        );
+        if (!accessToken) {
+          return res
+            .status(401)
+            .send("Đăng nhập không thành công, vui lòng thử lại.");
+        }
 
-      let refreshToken = randToken.generate(120); // tạo 1 refresh token ngẫu nhiên
-      if (data.refreshToken === "") {
-        // Nếu user này chưa có refresh token thì lưu refresh token đó vào database
-        await userModel
-          .updateOne({ refreshToken: refreshToken })
-          .then(() => {
-            console.log("update OK");
-          })
-          .catch((error) => console.log(error));
+        let refreshToken = randToken.generate(120); // tạo 1 refresh token ngẫu nhiên
+        if (data.refreshToken === "") {
+          // Nếu user này chưa có refresh token thì lưu refresh token đó vào database
+          await userModel
+            .findOneAndUpdate(
+              { username: data.username },
+              { refreshToken: refreshToken }
+            )
+            .then(() => {
+              console.log("update OK");
+            })
+            .catch((error) => console.log(error));
+        } else {
+          // Nếu user này đã có refresh token thì lấy refresh token đó từ database
+          refreshToken = data.refreshToken;
+        }
+
+        return res.json({
+          msg: "Đăng nhập thành công.",
+          accessToken,
+          refreshToken,
+          data,
+        });
       } else {
-        // Nếu user này đã có refresh token thì lấy refresh token đó từ database
-        refreshToken = data.refreshToken;
+        res.status(404).json({ msg: "not found" });
       }
-
-      return res.json({
-        msg: "Đăng nhập thành công.",
-        accessToken,
-        refreshToken,
-        data,
-      });
     })
     .catch((error) => console.log(error));
 };
@@ -109,12 +114,14 @@ exports.refreshToken = async (req, res) => {
   if (!refreshTokenFromBody) {
     return res.status(400).send("Không tìm thấy refresh token.");
   }
+  console.log("accccccccccccccccccccccc :::" + accessTokenFromHeader);
+  console.log("refresssssssssssssssss :::" + refreshTokenFromBody);
 
   const accessTokenSecret =
     "Access_Token_Secret_#$%_ExpressJS_Authentication" ||
     jwtVariable.accessTokenSecret;
 
-  const accessTokenLife = "10m" || jwtVariable.accessTokenLife;
+  const accessTokenLife = "2m" || jwtVariable.accessTokenLife;
 
   // Decode access token đó
   const decoded = await authMethod.decodeToken(
@@ -127,7 +134,7 @@ exports.refreshToken = async (req, res) => {
 
   const username = decoded.payload.username; // Lấy username từ payload
 
-   userModel.findOne({username: username}).then(async (data) => {
+  userModel.findOne({ username: username }).then(async (data) => {
     const user = data.toObject();
     if (!user) {
       return res.status(401).send("User không tồn tại.");
@@ -135,12 +142,12 @@ exports.refreshToken = async (req, res) => {
     if (refreshTokenFromBody !== user.refreshToken) {
       return res.status(400).send("Refresh token không hợp lệ.");
     }
-  
+
     // Tạo access token mới
     const dataForAccessToken = {
       username,
     };
-  
+
     const accessToken = await authMethod.generateToken(
       dataForAccessToken,
       accessTokenSecret,
@@ -154,6 +161,5 @@ exports.refreshToken = async (req, res) => {
     return res.json({
       accessToken,
     });
-   });
-  
+  });
 };

@@ -20,7 +20,6 @@ exports.isAuth = async (req, res, next) => {
 			.status(401)
 			.send('Bạn không có quyền truy cập vào tính năng này!');
 	}
-
 	const user = await userModel.findOne({username: verified.payload.username});
 	req.user = user.toObject();
 

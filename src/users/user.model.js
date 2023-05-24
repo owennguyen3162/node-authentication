@@ -3,10 +3,9 @@ const Schema = mongoose.Schema;
 
 const User = new Schema(
   {
-    username: { type: String, unique: true },
+    username: { type: String, required: true, unique: true },
     password: { type: String },
     refreshToken: { type: String, default: "" },
-
   },
   { timestamps: true }
 );
